@@ -1,0 +1,37 @@
+pipeline {
+  agent any
+  options { timestamps(); timeout(time: 15, unit: 'MINUTES') }
+  environment { IMAGE = "gists-api:${env.BUILD_NUMBER}" }
+
+  stages {
+    stage('Test') {
+      steps {
+        dir('gists-api') {
+          sh '''
+            python3 -m venv .venv
+            . .venv/bin/activate
+            pip install -r requirements-dev.txt
+            pytest -v
+          '''
+        }
+      }
+    }
+    stage('Build image') {
+      steps {
+        dir('gists-api') { sh 'docker build -t $IMAGE .' }
+      }
+    }
+    stage('Smoke test') {
+      steps {
+        sh '''
+          docker run -d --name gists-smoke -p 18080:8080 $IMAGE
+          sleep 5
+          curl -f http://localhost:18080/_health
+        '''
+      }
+    }
+  }
+  post {
+    always { sh 'docker rm -f gists-smoke || true' }
+  }
+}
