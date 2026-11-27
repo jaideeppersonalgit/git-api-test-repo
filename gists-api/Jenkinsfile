@@ -24,9 +24,17 @@ pipeline {
     stage('Smoke test') {
       steps {
         sh '''
-          docker run -d --name gists-smoke -p 18080:8080 $IMAGE
-          sleep 5
-          curl -f http://localhost:18080/_health
+          docker run -d --name gists-smoke $IMAGE
+          for i in $(seq 1 10); do
+            if docker exec gists-smoke python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/_health')"; then
+              echo "Health check OK"
+              exit 0
+            fi
+            echo "Waiting for app... ($i)"
+            sleep 2
+          done
+          docker logs gists-smoke
+          exit 1
         '''
       }
     }
